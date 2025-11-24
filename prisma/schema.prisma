@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = env("DATABASE_PROVIDER") // e.g. postgresql or mysql
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  owner
+  admin
+  noc
+  read_only
+}
+
+enum PrefixStatus {
+  free
+  allocated
+  reserved
+}
+
+enum NodeStatus {
+  online
+  offline
+}
+
+enum NodeType {
+  hypervisor
+  router
+  edge
+  other
+}
+
+model User {
+  id         String   @id @default(cuid())
+  name       String
+  email      String   @unique
+  password   String
+  role       Role     @default(read_only)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  rules      FirewallRule[] @relation("CreatedRules")
+  auditLogs  AuditLog[]
+}
+
+model Node {
+  id        String      @id @default(cuid())
+  name      String
+  location  String
+  ipAddress String
+  type      String
+  apiToken  String      @unique
+  status    String      @default("online")
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  firewallRuleNodes FirewallRuleNode[]
+  prefixes  Prefix[]
+}
+
+model FirewallRule {
+  id           String   @id @default(cuid())
+  ip           String?
+  cidr         String?
+  version      Int
+  scope        String
+  reason       String?
+  createdById  String?
+  createdBy    User?    @relation("CreatedRules", fields: [createdById], references: [id])
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  nodes        FirewallRuleNode[]
+}
+
+model FirewallRuleNode {
+  id             String       @id @default(cuid())
+  firewallRuleId String
+  nodeId         String
+  firewallRule   FirewallRule @relation(fields: [firewallRuleId], references: [id])
+  node           Node         @relation(fields: [nodeId], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([firewallRuleId, nodeId])
+}
+
+model Prefix {
+  id         String   @id @default(cuid())
+  cidr       String
+  ipVersion  Int
+  location   String
+  nodeId     String?
+  node       Node?    @relation(fields: [nodeId], references: [id])
+  status     PrefixStatus
+  assignedTo String?
+  vlan       Int?
+  vrf        String?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  action      String
+  description String
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+}
